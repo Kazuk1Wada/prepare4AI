@@ -1,0 +1,229 @@
+# .cursorrules — MVP実装用ガイドライン（Flask / EC2 / SQLite→PostgreSQL）
+# 目的: Cursorが本リポジトリに対して安全かつ一貫性のある実装を行うための行動規範。
+# 守るべき優先順位: セキュリティ > 仕様の忠実性 > 可読性 > 実装速度
+
+project:
+  name: "社内スレッド投稿アプリ (MVP)"
+  goal:
+    - Teams風のスレッド投稿・コメント・検索
+    - 認証は「メール＋パスワード」固定（Magic Linkは採用しない）
+    - 将来AI連携可能な拡張性を担保（要約/類似/タグ提案は後続）
+
+  # 実装対象の範囲（MVPで完了させること）
+  mvp_scope:
+    - 認証: メール＋パスワード（bcryptハッシュ）
+    - ロール: user / moderator / admin（RBAC）
+    - 投稿: 作成/編集/削除/一覧/詳細
+    - コメント: 追加/一覧
+    - いいね: 1ユーザー1回
+    - 検索: タイトル/本文/タグ
+    - タグ: 自由 + 公式（モデレーター管理）
+    - ステータス: 未確認/検討中/対応中/完了
+    - 通報: 投稿/コメント
+    - 監査: 重要操作（ログイン成否、削除、権限変更）
+    - 通知: 最小限（自分の投稿へのコメント、@は後回しOK）
+    - 画面: ログイン / 一覧 / 詳細 / 投稿作成 / 管理
+
+  # 明確にやらないこと
+  out_of_scope:
+    - Magic Link / OAuth / SSO（将来検討）
+    - 外部公開/共有
+    - リアルタイム更新 / WebSocket
+    - 複雑なWYSIWYG（Markdown程度でOK）
+
+architecture:
+  backend: Flask + SQLAlchemy + Flask-Login + Flask-Migrate
+  db:
+    dev: SQLite（ファイル）
+    prod: PostgreSQL（将来切替前提、方言依存NG）
+  server: Gunicorn + Nginx on EC2
+  storage: S3（添付ファイルは署名付きURL想定／MVPはローカルでも可）
+  templates: Jinja2 + Bootstrap（軽量UI）
+  logging: 構造化ログ(JSON) + 監査ログテーブル
+  config:
+    - 環境変数で管理（.envはGitに含めない）
+    - 秘密情報はAWS SSM/Secrets Manager（本番）
+
+conventions:
+  languages:
+    - Python 3.11+
+    - HTML/CSS/JS（ES6）
+  code_style:
+    - Black + isort + flake8（E501は120列）
+    - mypyはstrictでなくても良いが型ヒントは極力付与
+  structure:
+    - app/
+      - __init__.py（factory）
+      - models/（user.py, thread.py, comment.py, tag.py, audit_log.py, report.py, like.py, attachment.py, assoc tables）
+      - routes/（auth.py, threads.py, comments.py, admin.py, web.py）
+      - services/（search.py, notifications.py, security.py）
+      - utils/（mail.py, validators.py）
+      - templates/（auth/, threads/, admin/）
+      - static/
+    - migrations/
+    - tests/
+    - config.py
+    - run.py
+    - requirements.txt
+    - README.md
+    - .env.example（値はダミー）
+  naming:
+    - ファイル名はスネークケース
+    - DBテーブルは複数形、FKには index 付与
+
+security_rules:
+  must:
+    - パスワードはbcryptでハッシュ（passlib[bcrypt]）
+    - CSRF有効化（Flask-WTF）／APIはCSRFトークン or SameSite=Lax + Originチェック
+    - 入力値はサーバ側でバリデーション
+    - ファイルアップロードは拡張子/サイズ制限、保存は安全なパスで
+    - セッションCookie: Secure/HttpOnly/SameSite=Lax
+    - ログインPOSTはRate Limit（例: 1分5回/IP）
+    - ドメイン制限（ALLOWED_EMAIL_DOMAIN）を尊重
+    - 監査ログを残す（login_success/failure, delete, role_change）
+  avoid:
+    - 生パスワードのログ出力
+    - SQL文字列連結（必ずバインド）
+    - Secretsの平文コミット
+    - Magic Linkの混入（設計外）
+
+ui_rules:
+  - Bootstrapの素直なコンポーネントでOK（過剰CSS禁止）
+  - モバイル対応（フォームは縦積み）
+  - エラー/成功メッセージはFlashで簡潔に
+
+endpoints_required:
+  - POST /auth/register
+  - POST /auth/login
+  - POST /auth/logout
+  - GET  /threads
+  - POST /threads
+  - GET  /threads/{id}
+  - PUT  /threads/{id}
+  - DELETE /threads/{id}
+  - GET  /threads/{id}/comments
+  - POST /threads/{id}/comments
+  - POST /threads/{id}/like
+  - GET  /tags
+  - POST /reports
+  - GET  /admin/mod-queue (通報キュー)
+  - POST /admin/tags/merge
+  - GET  /dashboard/metrics  # 形だけのモックで可（MVP）
+
+database_model_minimum:
+  - User(id, email, name, dept, role[user|moderator|admin], password_hash, is_active, created_at)
+  - Thread(id, title, body, author_id, status, like_count, visibility, created_at, updated_at)
+  - Comment(id, thread_id, body, author_id, created_at, updated_at, is_deleted)
+  - Tag(id, name, is_official, created_at)
+  - ThreadTag(thread_id, tag_id)
+  - Like(id, thread_id, user_id, created_at, UNIQUE(thread_id, user_id))
+  - Attachment(id, thread_id, file_path, mime_type, size, uploader_id, virus_scanned)
+  - Report(id, target_type, target_id, reason, reporter_id, handled_by, handled_at, action)
+  - AuditLog(id, actor_id, action, target_type, target_id, meta_json, created_at)
+
+acceptance_criteria: # Given-When-Then で検証できる状態にする
+  - login_success:
+      given: 正しいメール/パスワード
+      when: POST /auth/login
+      then: 200/302, セッション開始, 監査ログ"login_success"
+  - login_failure:
+      given: 不正なパスワード
+      when: POST /auth/login
+      then: 200/302(画面戻り), 監査ログ"login_failure"
+  - thread_crud:
+      given: 認証済みユーザー
+      when: POST/GET/PUT/DELETE /threads
+      then: 自分の投稿のみ編集/削除可, 監査ログに削除記録
+  - like_once:
+      given: 同一ユーザー
+      when: POST /threads/{id}/like 複数回
+      then: 2回目は無視 or 409、合計は+1のまま
+  - search_basic:
+      given: 複数の投稿
+      when: GET /threads?query=キーワード
+      then: タイトル/本文/タグでヒット
+  - report_queue:
+      given: 通報が登録済み
+      when: GET /admin/mod-queue (moderator/admin)
+      then: リストが取得できる。一般ユーザーは403
+
+tests:
+  framework: pytest + pytest-flask + factory_boy
+  minimal_cases:
+    - test_auth_login_success_failure
+    - test_thread_crud_rbac
+    - test_like_uniqueness
+    - test_search_endpoint
+    - test_report_flow
+  notes:
+    - SQLiteで動くように（Postgres依存機能NG）
+    - テストDBは一時ファイルでisolatedに
+
+performance_targets:
+  - P95 < 1.5s on /threads (一覧 20件 + 軽い検索)
+  - N+1禁止（必要に応じてjoinedload）
+
+rate_limits:
+  - POST /auth/login: 5/min/IP
+  - POST /threads: 30/min/user（スパム防止の暫定値）
+
+tasks_for_cursor: # Cursorに与える高精度プロンプトの雛形
+  - "アプリ工場":
+      description: アプリの雛形を作成する
+      steps:
+        - アプリファクトリ(app/__init__.py)作成（DB, LoginManager, CSRF, Migrate 初期化）
+        - config.pyに環境クラス（Dev/Prod/Test）
+        - requirements.txt生成（passlib[bcrypt]含む）
+        - run.py（flask run用）作成
+        - .env.example作成（SECRET_KEY/DB URI など）
+  - "モデル定義":
+      description: database_model_minimum をSQLAlchemyで定義
+      constraints:
+        - __repr__ と __tablename__ を持たせる
+        - 主要カラムにindex
+        - 外部キーはondelete=’CASCADE’（SQLiteは見かけ上でもOK）
+  - "認証実装":
+      description: Flask-Login + bcrypt（passlib）でログイン/登録/ログアウト
+      constraints:
+        - ドメイン制限（ALLOWED_EMAIL_DOMAIN）
+        - 監査ログを必ず記録
+  - "スレッド機能":
+      description: CRUD + 検索 + いいね + ステータス
+  - "通報/モデレーション":
+      description: 通報登録API + モデレーションキュー（管理画面）
+  - "UI最小実装":
+      description: Bootstrapフォーム + Jinja2テンプレ
+  - "テスト":
+      description: tests/ に受け入れテスト一式
+
+prohibited_changes: # Cursorがやってはいけないこと
+  - 認証方式をMagic Link/OIDCへ変更しない
+  - DBをMySQLやMongoDBに変えない
+  - ルーティング仕様を勝手に変更しない
+  - 秘密情報を平文でコミットしない
+  - インフラ（CDK/Terraform等）を無断で追加しない
+
+commit_style:
+  - prefix: ["feat:", "fix:", "chore:", "refactor:", "test:", "docs:"]
+  - examples:
+      - "feat(auth): add email+password login with bcrypt and CSRF"
+      - "feat(threads): implement CRUD and search with basic filters"
+      - "test(auth): add login success/failure tests"
+      - "refactor(models): add indexes and repr methods"
+
+runbook_dev:
+  setup:
+    - python -m venv .venv && source .venv/bin/activate
+    - pip install -r requirements.txt
+    - cp .env.example .env && edit values
+    - flask db init && flask db migrate -m "init schema" && flask db upgrade
+    - flask run
+  seed:
+    - 管理者作成スクリプト scripts/create_admin.py を用意
+  checks:
+    - flake8 && black --check . && pytest -q
+
+notes_for_llm:
+  - このルールを毎回最初に読み込み、疑義があればdiff提案を出してから実装
+  - 仕様の明文化がない動作は「最小実装」でよい（過剰設計しない）
+  - 例外やエッジケースは tests/ にFailing Testとして先に追加してから実装推奨

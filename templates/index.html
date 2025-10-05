@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block title %}ホーム - 社内スレッド投稿アプリ{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <!-- 検索バー -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <form method="GET" action="{{ url_for('index') }}">
+                    <div class="row g-2">
+                        <div class="col-md-8">
+                            <input type="text" class="form-control" name="search" placeholder="スレッドを検索..." value="{{ request.args.get('search', '') }}">
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select" name="status">
+                                <option value="">すべてのステータス</option>
+                                <option value="未確認" {% if request.args.get('status') == '未確認' %}selected{% endif %}>未確認</option>
+                                <option value="検討中" {% if request.args.get('status') == '検討中' %}selected{% endif %}>検討中</option>
+                                <option value="対応中" {% if request.args.get('status') == '対応中' %}selected{% endif %}>対応中</option>
+                                <option value="完了" {% if request.args.get('status') == '完了' %}selected{% endif %}>完了</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-search"></i> 検索
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- スレッド一覧 -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2>スレッド一覧</h2>
+            <div class="btn-group" role="group">
+                <input type="radio" class="btn-check" name="sort" id="sort-new" value="new" checked>
+                <label class="btn btn-outline-primary" for="sort-new">新着順</label>
+                
+                <input type="radio" class="btn-check" name="sort" id="sort-popular" value="popular">
+                <label class="btn btn-outline-primary" for="sort-popular">人気順</label>
+            </div>
+        </div>
+
+        {% if threads.items %}
+            {% for thread in threads.items %}
+            <div class="card thread-card mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h5 class="card-title mb-0">
+                            <a href="{{ url_for('thread_detail', id=thread.id) }}" class="text-decoration-none">
+                                {{ thread.title }}
+                            </a>
+                        </h5>
+                        <span class="badge bg-{{ 'secondary' if thread.status == '未確認' else 'warning' if thread.status == '検討中' else 'info' if thread.status == '対応中' else 'success' }} status-badge">
+                            {{ thread.status }}
+                        </span>
+                    </div>
+                    
+                    <p class="card-text text-muted">{{ thread.body[:200] }}{% if thread.body|length > 200 %}...{% endif %}</p>
+                    
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center">
+                            <small class="text-muted me-3">
+                                <i class="fas fa-user"></i> {{ thread.author.name }}
+                            </small>
+                            <small class="text-muted me-3">
+                                <i class="fas fa-clock"></i> {{ thread.created_at.strftime('%Y/%m/%d %H:%M') }}
+                            </small>
+                            <small class="text-muted me-3">
+                                <i class="fas fa-comments"></i> {{ thread.comments|length }}件
+                            </small>
+                        </div>
+                        
+                        <div class="d-flex align-items-center">
+                            <button class="like-btn me-2" data-thread-id="{{ thread.id }}">
+                                <i class="fas fa-heart"></i> {{ thread.like_count }}
+                            </button>
+                            {% if thread.attachments %}
+                            <small class="text-muted">
+                                <i class="fas fa-paperclip"></i> {{ thread.attachments|length }}個
+                            </small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- タグ表示 -->
+                    {% if thread.thread_tags %}
+                    <div class="mt-2">
+                        {% for thread_tag in thread.thread_tags %}
+                        <span class="badge bg-light text-dark me-1">{{ thread_tag.tag.name }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+
+            <!-- ページネーション -->
+            {% if threads.pages > 1 %}
+            <nav aria-label="ページネーション">
+                <ul class="pagination justify-content-center">
+                    {% if threads.has_prev %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('index', page=threads.prev_num, search=request.args.get('search'), status=request.args.get('status')) }}">前へ</a>
+                    </li>
+                    {% endif %}
+                    
+                    {% for page_num in threads.iter_pages() %}
+                        {% if page_num %}
+                            {% if page_num != threads.page %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('index', page=page_num, search=request.args.get('search'), status=request.args.get('status')) }}">{{ page_num }}</a>
+                            </li>
+                            {% else %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ page_num }}</span>
+                            </li>
+                            {% endif %}
+                        {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">…</span>
+                        </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if threads.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('index', page=threads.next_num, search=request.args.get('search'), status=request.args.get('status')) }}">次へ</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-comments fa-3x text-muted mb-3"></i>
+            <h4 class="text-muted">スレッドがありません</h4>
+            <p class="text-muted">最初のスレッドを作成してみましょう！</p>
+            {% if current_user.is_authenticated %}
+            <a href="{{ url_for('create_thread') }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> 新規投稿
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="col-md-4">
+        <!-- サイドバー -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-tags"></i> 人気のタグ</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-1">
+                    <span class="badge bg-primary">IT推進</span>
+                    <span class="badge bg-secondary">自動化</span>
+                    <span class="badge bg-success">効率化</span>
+                    <span class="badge bg-info">システム</span>
+                    <span class="badge bg-warning">業務改善</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-chart-bar"></i> 統計</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <h4 class="text-primary">{{ threads.total }}</h4>
+                        <small class="text-muted">総スレッド数</small>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="text-success">{{ current_user.threads|length if current_user.is_authenticated else 0 }}</h4>
+                        <small class="text-muted">あなたの投稿</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // いいね機能
+    $('.like-btn').click(function() {
+        var threadId = $(this).data('thread-id');
+        var btn = $(this);
+        
+        $.post('/threads/' + threadId + '/like', function(data) {
+            if (data.success) {
+                btn.find('i').toggleClass('fas far');
+                btn.toggleClass('liked');
+                btn.find('i').next().text(' ' + data.like_count);
+            }
+        });
+    });
+    
+    // ソート機能
+    $('input[name="sort"]').change(function() {
+        var sort = $(this).val();
+        var url = new URL(window.location);
+        url.searchParams.set('sort', sort);
+        window.location.href = url.toString();
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block title %}新規投稿 - 社内スレッド投稿アプリ{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4><i class="fas fa-plus"></i> 新規スレッド作成</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="title" class="form-label">タイトル <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="title" name="title" required maxlength="200">
+                        <div class="form-text">200文字以内で入力してください</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="body" class="form-label">本文 <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="body" name="body" rows="10" required placeholder="スレッドの内容を入力してください..."></textarea>
+                        <div class="form-text">Markdown形式で記述できます</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="tags" class="form-label">タグ</label>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <input type="text" class="form-control" id="tag-input" placeholder="新しいタグを入力...">
+                                <div class="form-text">Enterキーでタグを追加</div>
+                            </div>
+                            <div class="col-md-6">
+                                <select class="form-select" id="existing-tags" multiple>
+                                    {% for tag in existing_tags %}
+                                    <option value="{{ tag.name }}">{{ tag.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">既存のタグから選択（Ctrl+クリックで複数選択）</div>
+                            </div>
+                        </div>
+                        <div id="selected-tags" class="mt-2"></div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="files" class="form-label">添付ファイル</label>
+                        <input type="file" class="form-control" id="files" name="files" multiple accept=".txt,.pdf,.png,.jpg,.jpeg,.gif,.doc,.docx,.xls,.xlsx">
+                        <div class="form-text">複数ファイルを選択可能（最大16MB）</div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> キャンセル
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i> 投稿
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    var selectedTags = [];
+    
+    // タグ入力処理
+    $('#tag-input').keypress(function(e) {
+        if (e.which === 13) { // Enterキー
+            e.preventDefault();
+            var tagName = $(this).val().trim();
+            if (tagName && selectedTags.indexOf(tagName) === -1) {
+                addTag(tagName);
+                $(this).val('');
+            }
+        }
+    });
+    
+    // 既存タグ選択処理
+    $('#existing-tags').change(function() {
+        var selected = $(this).val();
+        if (selected) {
+            selected.forEach(function(tagName) {
+                if (selectedTags.indexOf(tagName) === -1) {
+                    addTag(tagName);
+                }
+            });
+            $(this).val([]);
+        }
+    });
+    
+    function addTag(tagName) {
+        selectedTags.push(tagName);
+        updateTagDisplay();
+        updateHiddenInputs();
+    }
+    
+    function removeTag(tagName) {
+        selectedTags = selectedTags.filter(tag => tag !== tagName);
+        updateTagDisplay();
+        updateHiddenInputs();
+    }
+    
+    function updateTagDisplay() {
+        var html = '';
+        selectedTags.forEach(function(tagName) {
+            html += '<span class="badge bg-primary me-1 mb-1">' + tagName + 
+                   ' <button type="button" class="btn-close btn-close-white" onclick="removeTag(\'' + tagName + '\')"></button></span>';
+        });
+        $('#selected-tags').html(html);
+    }
+    
+    function updateHiddenInputs() {
+        // 既存のhidden inputを削除
+        $('input[name="tags"]').remove();
+        
+        // 新しいhidden inputを追加
+        selectedTags.forEach(function(tagName) {
+            $('<input>').attr({
+                type: 'hidden',
+                name: 'tags',
+                value: tagName
+            }).appendTo('form');
+        });
+    }
+    
+    // グローバル関数として定義
+    window.removeTag = removeTag;
+    
+    // 文字数カウント
+    $('#title').on('input', function() {
+        var length = $(this).val().length;
+        var maxLength = 200;
+        if (length > maxLength * 0.9) {
+            $(this).addClass('is-warning');
+        } else {
+            $(this).removeClass('is-warning');
+        }
+    });
+    
+    // ファイル選択時のプレビュー
+    $('#files').change(function() {
+        var files = this.files;
+        var fileList = '';
+        for (var i = 0; i < files.length; i++) {
+            fileList += '<div class="text-muted small">' + files[i].name + ' (' + 
+                       Math.round(files[i].size / 1024) + 'KB)</div>';
+        }
+        if (fileList) {
+            $('#file-preview').remove();
+            $('<div id="file-preview" class="mt-2">' + fileList + '</div>').insertAfter('#files');
+        }
+    });
+});
+</script>
+{% endblock %}
