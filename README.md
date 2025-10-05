@@ -86,6 +86,32 @@ prepare4AI/
     └── 要求仕様書_MVP.md
 ```
 
+## デプロイ手順
+
+### EC2へのデプロイ
+
+詳細なデプロイ手順は以下のドキュメントを参照してください：
+
+- **[EC2デプロイ手順書](docs/EC2デプロイ手順書.md)**: 従来の方法でのEC2デプロイ
+- **[Dockerデプロイ手順書](docs/Dockerデプロイ手順書.md)**: Dockerを使用した簡単なデプロイ
+
+### クイックスタート（Docker）
+
+```bash
+# 1. リポジトリをクローン
+git clone <repository-url>
+cd thread-app
+
+# 2. データディレクトリを作成
+mkdir -p data uploads ssl
+
+# 3. Docker Composeで起動
+docker-compose up -d
+
+# 4. ブラウザでアクセス
+# http://localhost:5000
+```
+
 ## 今後の拡張予定
 
 - 生成AIによるスレッド要約機能
