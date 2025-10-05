@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block title %}管理画面 - 社内スレッド投稿アプリ{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fas fa-cog"></i> 管理画面</h2>
+        <hr>
+    </div>
+</div>
+
+<!-- 統計情報 -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-primary">{{ stats.total_threads }}</h3>
+                <p class="card-text">総スレッド数</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-success">{{ stats.total_comments }}</h3>
+                <p class="card-text">総コメント数</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-info">{{ stats.total_users }}</h3>
+                <p class="card-text">登録ユーザー数</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-warning">{{ stats.pending_reports }}</h3>
+                <p class="card-text">未対応通報</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- 最近の通報 -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-flag"></i> 最近の通報</h5>
+            </div>
+            <div class="card-body">
+                {% if recent_reports %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>通報日時</th>
+                                <th>対象</th>
+                                <th>通報者</th>
+                                <th>理由</th>
+                                <th>ステータス</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for report in recent_reports %}
+                            <tr>
+                                <td>{{ report.created_at.strftime('%m/%d %H:%M') }}</td>
+                                <td>
+                                    {% if report.target_type == 'thread' %}
+                                    <i class="fas fa-comment"></i> スレッド
+                                    {% else %}
+                                    <i class="fas fa-reply"></i> コメント
+                                    {% endif %}
+                                </td>
+                                <td>{{ report.reporter.name }}</td>
+                                <td>{{ report.reason[:50] }}{% if report.reason|length > 50 %}...{% endif %}</td>
+                                <td>
+                                    <span class="badge bg-{{ 'warning' if report.status == '未対応' else 'info' if report.status == '対応中' else 'success' }}">
+                                        {{ report.status }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="viewReport({{ report.id }})">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-flag fa-2x mb-2"></i>
+                    <p>通報はありません</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- 管理メニュー -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-tools"></i> 管理メニュー</h5>
+            </div>
+            <div class="card-body">
+                <div class="list-group list-group-flush">
+                    <a href="#" class="list-group-item list-group-item-action">
+                        <i class="fas fa-users"></i> ユーザー管理
+                    </a>
+                    <a href="#" class="list-group-item list-group-item-action">
+                        <i class="fas fa-comments"></i> スレッド管理
+                    </a>
+                    <a href="#" class="list-group-item list-group-item-action">
+                        <i class="fas fa-flag"></i> 通報管理
+                    </a>
+                    <a href="#" class="list-group-item list-group-item-action">
+                        <i class="fas fa-tags"></i> タグ管理
+                    </a>
+                    <a href="#" class="list-group-item list-group-item-action">
+                        <i class="fas fa-chart-bar"></i> 統計レポート
+                    </a>
+                    <a href="#" class="list-group-item list-group-item-action">
+                        <i class="fas fa-history"></i> 監査ログ
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5><i class="fas fa-info-circle"></i> システム情報</h5>
+            </div>
+            <div class="card-body">
+                <small class="text-muted">
+                    <strong>アプリケーション:</strong> 社内スレッド投稿アプリ v1.0<br>
+                    <strong>データベース:</strong> SQLite<br>
+                    <strong>最終更新:</strong> {{ moment().format('YYYY年MM月DD日') }}
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 通報詳細モーダル -->
+<div class="modal fade" id="reportModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">通報詳細</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="reportDetails">
+                    <!-- 通報詳細がここに表示されます -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
+                <button type="button" class="btn btn-warning" onclick="updateReportStatus('対応中')">対応中に変更</button>
+                <button type="button" class="btn btn-success" onclick="updateReportStatus('完了')">完了に変更</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function viewReport(reportId) {
+    // 通報詳細を取得してモーダルに表示
+    fetch('/admin/reports/' + reportId)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('reportDetails').innerHTML = 
+                '<h6>通報情報</h6>' +
+                '<p><strong>通報者:</strong> ' + data.reporter_name + '</p>' +
+                '<p><strong>対象:</strong> ' + (data.target_type === 'thread' ? 'スレッド' : 'コメント') + '</p>' +
+                '<p><strong>理由:</strong> ' + data.reason + '</p>' +
+                '<p><strong>通報日時:</strong> ' + data.created_at + '</p>' +
+                '<p><strong>ステータス:</strong> ' + data.status + '</p>';
+            
+            new bootstrap.Modal(document.getElementById('reportModal')).show();
+        });
+}
+
+function updateReportStatus(status) {
+    // 通報ステータスを更新
+    const reportId = document.querySelector('#reportModal').dataset.reportId;
+    fetch('/admin/reports/' + reportId + '/status', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({status: status})
+    }).then(response => {
+        if (response.ok) {
+            location.reload();
+        }
+    });
+}
+</script>
+{% endblock %}

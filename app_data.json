@@ -1,0 +1,53 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "name": "わだ",
+      "email": "わだ@company.com",
+      "dept": "未設定",
+      "role": "user",
+      "created_at": "2025-10-05T09:10:25.295437"
+    },
+    {
+      "id": 2,
+      "name": "wada",
+      "email": "wada@company.com",
+      "dept": "未設定",
+      "role": "user",
+      "created_at": "2025-10-05T09:14:40.877253"
+    }
+  ],
+  "threads": [
+    {
+      "id": 1,
+      "title": "【test】業務改善",
+      "body": "業務改善したいこと\r\n期待すること",
+      "author_id": 1,
+      "status": "未確認",
+      "like_count": 0,
+      "created_at": "2025-10-05T09:10:25.295437",
+      "updated_at": "2025-10-05T09:10:25.295437"
+    },
+    {
+      "id": 2,
+      "title": "2個目の起動",
+      "body": "いいねや返信機能確認",
+      "author_id": 2,
+      "status": "未確認",
+      "like_count": 0,
+      "created_at": "2025-10-05T09:14:40.877253",
+      "updated_at": "2025-10-05T09:14:40.877253"
+    }
+  ],
+  "comments": [
+    {
+      "id": 1,
+      "thread_id": 2,
+      "body": "共感するひとはコメントお願いします！",
+      "author_id": 1,
+      "created_at": "2025-10-05T09:26:14.179250"
+    }
+  ],
+  "tags": [],
+  "likes": []
+}

@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+
+{% block title %}{{ thread.title }} - 社内スレッド投稿アプリ{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <!-- スレッド詳細 -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h2 class="mb-0">{{ thread.title }}</h2>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-{{ 'secondary' if thread.status == '未確認' else 'warning' if thread.status == '検討中' else 'info' if thread.status == '対応中' else 'success' }}">
+                        {{ thread.status }}
+                    </span>
+                    {% if current_user.is_authenticated and (current_user.id == thread.author_id or current_user.role in ['moderator', 'admin']) %}
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('edit_thread', id=thread.id) }}">
+                                <i class="fas fa-edit"></i> 編集
+                            </a></li>
+                            <li><a class="dropdown-item text-danger" href="#" onclick="deleteThread({{ thread.id }})">
+                                <i class="fas fa-trash"></i> 削除
+                            </a></li>
+                        </ul>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-user-circle fa-2x text-muted me-2"></i>
+                        <div>
+                            <h6 class="mb-0">{{ thread.author.name }}</h6>
+                            <small class="text-muted">{{ thread.author.dept or '部署未設定' }}</small>
+                        </div>
+                    </div>
+                    <small class="text-muted">
+                        <i class="fas fa-clock"></i> {{ thread.created_at.strftime('%Y年%m月%d日 %H:%M') }}
+                        {% if thread.updated_at != thread.created_at %}
+                        <br><i class="fas fa-edit"></i> 更新: {{ thread.updated_at.strftime('%Y年%m月%d日 %H:%M') }}
+                        {% endif %}
+                    </small>
+                </div>
+                
+                <div class="thread-content mb-3">
+                    {{ thread.body|replace('\n', '<br>')|safe }}
+                </div>
+                
+                <!-- タグ表示 -->
+                {% if thread.thread_tags %}
+                <div class="mb-3">
+                    {% for thread_tag in thread.thread_tags %}
+                    <span class="badge bg-light text-dark me-1">{{ thread_tag.tag.name }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                <!-- 添付ファイル -->
+                {% if thread.attachments %}
+                <div class="mb-3">
+                    <h6><i class="fas fa-paperclip"></i> 添付ファイル</h6>
+                    <div class="list-group">
+                        {% for attachment in thread.attachments %}
+                        <a href="{{ url_for('download_file', id=attachment.id) }}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-file"></i> {{ attachment.original_filename }}
+                            <small class="text-muted">({{ "%.1f"|format(attachment.file_size / 1024) }}KB)</small>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                <!-- アクションボタン -->
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-3">
+                        <button class="like-btn btn btn-outline-danger" data-thread-id="{{ thread.id }}">
+                            <i class="fas fa-heart"></i> {{ thread.like_count }}
+                        </button>
+                        
+                        {% if current_user.is_authenticated %}
+                        <button class="btn btn-outline-warning" onclick="reportThread({{ thread.id }})">
+                            <i class="fas fa-flag"></i> 通報
+                        </button>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="text-muted">
+                        <i class="fas fa-comments"></i> {{ thread.comments|length }}件のコメント
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- コメント一覧 -->
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-comments"></i> コメント ({{ thread.comments|length }}件)</h5>
+            </div>
+            <div class="card-body">
+                {% if thread.comments %}
+                    {% for comment in thread.comments %}
+                    <div class="comment-item mb-3 pb-3 border-bottom">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-user-circle text-muted me-2"></i>
+                                <div>
+                                    <h6 class="mb-0">{{ comment.author.name }}</h6>
+                                    <small class="text-muted">{{ comment.created_at.strftime('%Y年%m月%d日 %H:%M') }}</small>
+                                </div>
+                            </div>
+                            {% if current_user.is_authenticated and (current_user.id == comment.author_id or current_user.role in ['moderator', 'admin']) %}
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteComment({{ comment.id }})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                            {% endif %}
+                        </div>
+                        <div class="comment-content">
+                            {{ comment.body|replace('\n', '<br>')|safe }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-comments fa-2x mb-2"></i>
+                    <p>まだコメントがありません。最初のコメントを投稿してみましょう！</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- コメント投稿フォーム -->
+        {% if current_user.is_authenticated %}
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5><i class="fas fa-reply"></i> コメントを投稿</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('add_comment', thread_id=thread.id) }}">
+                    <div class="mb-3">
+                        <textarea class="form-control" name="body" rows="4" placeholder="コメントを入力してください..." required></textarea>
+                    </div>
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i> コメント投稿
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="col-md-4">
+        <!-- サイドバー -->
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-info-circle"></i> スレッド情報</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center mb-3">
+                    <div class="col-6">
+                        <h4 class="text-primary">{{ thread.like_count }}</h4>
+                        <small class="text-muted">いいね</small>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="text-success">{{ thread.comments|length }}</h4>
+                        <small class="text-muted">コメント</small>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="mb-2">
+                    <strong>作成者:</strong><br>
+                    {{ thread.author.name }}<br>
+                    <small class="text-muted">{{ thread.author.dept or '部署未設定' }}</small>
+                </div>
+                
+                <div class="mb-2">
+                    <strong>作成日時:</strong><br>
+                    <small class="text-muted">{{ thread.created_at.strftime('%Y年%m月%d日 %H:%M') }}</small>
+                </div>
+                
+                {% if thread.updated_at != thread.created_at %}
+                <div class="mb-2">
+                    <strong>最終更新:</strong><br>
+                    <small class="text-muted">{{ thread.updated_at.strftime('%Y年%m月%d日 %H:%M') }}</small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 削除確認モーダル -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">削除確認</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                このスレッドを削除してもよろしいですか？この操作は取り消せません。
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                <form id="deleteForm" method="POST" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">削除</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function deleteThread(threadId) {
+    document.getElementById('deleteForm').action = '/threads/' + threadId + '/delete';
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+
+function deleteComment(commentId) {
+    if (confirm('このコメントを削除しますか？')) {
+        fetch('/comments/' + commentId + '/delete', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        }).then(response => {
+            if (response.ok) {
+                location.reload();
+            }
+        });
+    }
+}
+
+function reportThread(threadId) {
+    const reason = prompt('通報理由を入力してください:');
+    if (reason) {
+        fetch('/reports', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                target_type: 'thread',
+                target_id: threadId,
+                reason: reason
+            })
+        }).then(response => {
+            if (response.ok) {
+                alert('通報を受け付けました。');
+            }
+        });
+    }
+}
+
+// いいね機能
+$('.like-btn').click(function() {
+    var threadId = $(this).data('thread-id');
+    var btn = $(this);
+    
+    $.post('/threads/' + threadId + '/like', function(data) {
+        if (data.success) {
+            btn.find('i').toggleClass('fas far');
+            btn.toggleClass('liked');
+            btn.find('i').next().text(' ' + data.like_count);
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,12 @@
+# データベース設定
+DATABASE_URL=sqlite:///thread_app.db
+
+# セキュリティ設定
+SECRET_KEY=your-secret-key-here
+
+# メール設定（オプション）
+MAIL_SERVER=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USE_TLS=true
+MAIL_USERNAME=your-email@gmail.com
+MAIL_PASSWORD=your-app-password
