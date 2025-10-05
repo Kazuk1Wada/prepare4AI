@@ -150,9 +150,44 @@ docker-compose up -d
 ### 起動方法
 
 #### スタンドアロン版（推奨：環境問題がある場合）
+
+**初回起動**
 ```bash
 python standalone_app.py
 ```
+
+**再起動手順**
+```powershell
+# 1. 現在のプロセスを確認
+netstat -ano | findstr :5000
+
+# 2. 実行中のプロセスを停止（PIDは上記コマンドで確認した番号）
+taskkill /PID [プロセスID] /F
+
+# 3. アプリケーションを再起動
+python standalone_app.py
+```
+
+**バックグラウンド実行**
+```powershell
+# 新しいPowerShellウィンドウで起動
+Start-Process python -ArgumentList "standalone_app.py"
+
+# または、現在のウィンドウでバックグラウンド実行
+Start-Job -ScriptBlock { python standalone_app.py }
+```
+
+**アクセス方法**
+- ブラウザで `http://localhost:5000` にアクセス
+- アプリケーションが正常に起動すると、スレッド一覧が表示されます
+
+**トラブルシューティング**
+
+| 問題 | 原因 | 解決方法 |
+|------|------|----------|
+| ポートが使用中エラー | 既にアプリが起動中 | `netstat -ano \| findstr :5000` でプロセスを確認し、`taskkill /PID [PID] /F` で停止 |
+| アクセスできない | アプリが起動していない | `python standalone_app.py` で起動を確認 |
+| データが保存されない | 権限問題 | アプリケーションディレクトリの書き込み権限を確認 |
 
 #### 完全版（依存関係が解決できている場合）
 ```bash
